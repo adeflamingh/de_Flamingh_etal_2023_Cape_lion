@@ -1,0 +1,4 @@
+Check if Curry data (bams) are paired end:
+samtools view -H SRR11037779.ready.bam (so yes)
+
+Seems like I will have to 
