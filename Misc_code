@@ -1,4 +1,6 @@
 Check if Curry data (bams) are paired end:
 samtools view -H SRR11037779.ready.bam (so yes)
 
-Seems like I will have to 
+Code used to change beagle.gz into glf for use in ngsF:
+zcat gl_55.beagle.gz | tail -n +2 | perl -an -e 'for($i=3; $i<=$#F; $i++){print(pack("d",($F[$i]==0 ? -inf : log($F[$i]))))}' > gl_55.glf
+
