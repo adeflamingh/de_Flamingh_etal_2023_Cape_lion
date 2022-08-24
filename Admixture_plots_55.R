@@ -1,10 +1,10 @@
 
 setwd("~/Box Sync/aDNA/lions (deflami2@illinois.edu)/Cape_lions/Witt_pipeline/PCA_55")
-populations <- c("Cape_lion", "Tanzania", "South_Africa", "Botswana", "Namibia", "Malawi", "Kenya", "India", "Gabon", "Ethiopia", "DRC", "Congo", "CAR", "Zambia", "Zimbabwe")
+populations <- c("Cape_lion_1","Cape_lion_2", "Tanzania", "South_Africa", "Botswana", "Namibia", "Malawi", "Kenya", "India", "Gabon", "Ethiopia", "DRC", "Congo", "CAR", "Zambia", "Zimbabwe")
 library(ggplot2)
 library(zoom)
 
-#cov = as.matrix(read.table("pca_46_all.cov"))
+#cov = as.matrix(read.table("pca_55_all.cov"))
 #cov = data.frame(cov)
 
 pop = read.table("Sample_info_55.txt") #tab-separated file, each row is an individual, can be as simple as 1 column for individual ID, 1 column for population (or island, in my case)
