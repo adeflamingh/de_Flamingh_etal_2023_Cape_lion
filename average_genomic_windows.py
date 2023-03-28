@@ -12,7 +12,7 @@ PROG = sys.argv[0].split('/')[-1]
 def parse_args():
     p = argparse.ArgumentParser(prog=PROG)
     p.add_argument('-f', '--fai', required=True, help='Path to the genome index (FAI).')
-    p.add_argument('-v', '--var-sites', required=False, help='Path to file with variant site positions.')
+    p.add_argument('-v', '--var-sites', required=False, help='Path to MAF file with variant site positions.')
     p.add_argument('-d', '--depth', required=False, help='Path to SAMtools depth file.')
     p.add_argument('-o', '--outdir', required=False, default='.', help='Path to output directory.')
     p.add_argument('-m', '--min-length', required=False, default=1_000_000, type=float, help='Minimum chromosome size in bp [default 1000000 (1Mbp)]')
@@ -165,9 +165,12 @@ def read_variant_sites(variant_sites_f, genome_window_intervals):
         chr_window_boundaries = genome_window_intervals.get(chr_id, None)
         populated_window_intervals.setdefault(chr_id, dict())
         populated_window_intervals = populate_variant_site_windows(position, chr_id, chr_window_boundaries, populated_window_intervals)
+    genome_total = 0
     for chrom in chr_position_tally:
         n_sites = chr_position_tally[chrom]
+        genome_total += n_sites
         print(f'    {chrom} : {n_sites:,} variant sites found.')
+    print(f'\n    Genome-wide : {genome_total:,} total variant sites found.')
     return populated_window_intervals
 
 #
@@ -269,20 +272,28 @@ def parse_depth_file(depth_f, genome_window_intervals):
         chr_window_boundaries = genome_window_intervals.get(chr_id, None)
         populated_depth_windows.setdefault(chr_id, dict())
         populated_depth_windows = populate_depth_windows(chr_id, position, depth, chr_window_boundaries, populated_depth_windows)
+    genome_total = 0
+    genome_non_zero = 0
     for chrom in chr_depth_tally:
+        # Total sites
         total_sites = chr_depth_tally[chrom][0]
+        genome_total += total_sites
+        # Non-zero sites
         non_zero_sites = chr_depth_tally[chrom][1]
         non_zero_freq = non_zero_sites/total_sites
+        genome_non_zero += non_zero_sites
         print(f'    {chrom} :  {total_sites:,} sites seen, {non_zero_sites:,} ({non_zero_freq:.02%}) with non-zero depth.')
+    genome_non_zero_f = genome_non_zero/genome_total
+    print(f'\n    Genome-wide : {genome_total:,} sites seen, {genome_non_zero:,} ({genome_non_zero_f:.02%}) with non-zero depth.')
     return populated_depth_windows
 
 def main():
     args = parse_args()
     # Initialize script
     print(f'Started {PROG} on {date_now()} {time_now()}.')
-    print(f'    Min Chrom Size (bp) : {args.min_length:,} bp')
-    print(f'    Window Size (bp) : {args.window_size:,} bp')
-    print(f'    Window Step (bp) : {args.window_step:,} bp')
+    print(f'    Min Chrom Size (bp): {args.min_length:,}')
+    print(f'    Window Size (bp): {args.window_size:,}')
+    print(f'    Window Step (bp): {args.window_step:,}')
     # Get windows from the fai
     genome_window_intervals = set_windows_from_fai(args.fai, args.window_size, args.window_step, args.min_length)
     # Parse the variant sites file and print output
