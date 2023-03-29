@@ -11,13 +11,20 @@ PROG = sys.argv[0].split('/')[-1]
 #
 def parse_args():
     p = argparse.ArgumentParser(prog=PROG)
-    p.add_argument('-f', '--fai', required=True, help='Path to the genome index (FAI).')
-    p.add_argument('-v', '--var-sites', required=False, help='Path to MAF file with variant site positions.')
-    p.add_argument('-d', '--depth', required=False, help='Path to SAMtools depth file.')
-    p.add_argument('-o', '--outdir', required=False, default='.', help='Path to output directory.')
-    p.add_argument('-m', '--min-length', required=False, default=1_000_000, type=float, help='Minimum chromosome size in bp [default 1000000 (1Mbp)]')
-    p.add_argument('-s', '--window-size', required=False, default=250_000, type=float, help='Size of windows in bp [default 250000 (250Kbp)].')
-    p.add_argument('-t', '--window-step', required=False, default=100_000, type=float, help='Step of windows in bp [default 100000 (100Kbp)].')
+    p.add_argument('-f', '--fai', required=True,
+                   help='Path to the genome index (FAI).')
+    p.add_argument('-v', '--var-sites', required=False,
+                   help='Path to MAF file with variant site positions.')
+    p.add_argument('-d', '--depth', required=False,
+                   help='Path to SAMtools depth file.')
+    p.add_argument('-o', '--outdir', required=False, default='.',
+                   help='Path to output directory.')
+    p.add_argument('-m', '--min-length', required=False, default=1_000_000,
+                   type=float, help='Minimum chromosome size in bp [default 1000000 (1Mbp)]')
+    p.add_argument('-s', '--window-size', required=False, default=250_000,
+                   type=float, help='Size of windows in bp [default 250000 (250Kbp)].')
+    p.add_argument('-t', '--window-step', required=False, default=100_000,
+                   type=float, help='Step of windows in bp [default 100000 (100Kbp)].')
     # Check inputs
     args = p.parse_args()
     args.outdir = args.outdir.rstrip('/')
@@ -300,10 +307,12 @@ def main():
     if args.var_sites is not None:
         populated_window_sites = read_variant_sites(args.var_sites, genome_window_intervals)
         print_variant_site_tally(populated_window_sites, args.window_size, args.outdir)
+        del populated_window_sites
     # Parse the depth file and print output
     if args.depth is not None:
         populated_depth_windows = parse_depth_file(args.depth, genome_window_intervals)
         print_average_coverage_file(populated_depth_windows, args.window_size, args.outdir)
+        del populated_depth_windows
 
     print(f'\nFinished {PROG} on {date_now()} {time_now()}.')
 
