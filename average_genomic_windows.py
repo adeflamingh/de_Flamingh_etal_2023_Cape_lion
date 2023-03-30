@@ -134,14 +134,14 @@ def set_windows_from_fai(fai, window_size=250_000, window_step=100_000, min_chr_
             continue
         windows = calculate_chr_window_intervals(seq_len, window_size, window_step)
         genome_window_intervals[seq_id] = windows
-    print(f'\nGenerated window intervals for {len(genome_window_intervals):,} chromosomes/scaffolds.')
+    print(f'\nGenerated window intervals for {len(genome_window_intervals):,} chromosomes/scaffolds.', flush=True)
     return genome_window_intervals
 
 #
 # Parse the variant sites file and populate windows
 #
 def read_variant_sites(variant_sites_f, genome_window_intervals):
-    print('\nTallying variant sites per chromosome...')
+    print('\nTallying variant sites per chromosome...', flush=True)
     populated_window_intervals = dict()
     chr_position_tally = dict()
     fh = None
@@ -176,8 +176,8 @@ def read_variant_sites(variant_sites_f, genome_window_intervals):
     for chrom in chr_position_tally:
         n_sites = chr_position_tally[chrom]
         genome_total += n_sites
-        print(f'    {chrom} : {n_sites:,} variant sites found.')
-    print(f'\n    Genome-wide : {genome_total:,} total variant sites found.')
+        print(f'    {chrom} : {n_sites:,} variant sites found.', flush=True)
+    print(f'\n    Genome-wide : {genome_total:,} total variant sites found.', flush=True)
     return populated_window_intervals
 
 #
@@ -248,7 +248,7 @@ def print_average_coverage_file(populated_depth_windows, window_size=250_000, ou
 # Parse the SAMtools depth file
 #
 def parse_depth_file(depth_f, genome_window_intervals):
-    print('\nTallying depth per chromosome...')
+    print('\nTallying depth per chromosome...', flush=True)
     populated_depth_windows = dict()
     chr_depth_tally = dict()
     fh = None
@@ -289,9 +289,9 @@ def parse_depth_file(depth_f, genome_window_intervals):
         non_zero_sites = chr_depth_tally[chrom][1]
         non_zero_freq = non_zero_sites/total_sites
         genome_non_zero += non_zero_sites
-        print(f'    {chrom} :  {total_sites:,} sites seen, {non_zero_sites:,} ({non_zero_freq:.02%}) with non-zero depth.')
+        print(f'    {chrom} :  {total_sites:,} sites seen, {non_zero_sites:,} ({non_zero_freq:.02%}) with non-zero depth.', flush=True)
     genome_non_zero_f = genome_non_zero/genome_total
-    print(f'\n    Genome-wide : {genome_total:,} sites seen, {genome_non_zero:,} ({genome_non_zero_f:.02%}) with non-zero depth.')
+    print(f'\n    Genome-wide : {genome_total:,} sites seen, {genome_non_zero:,} ({genome_non_zero_f:.02%}) with non-zero depth.', flush=True)
     return populated_depth_windows
 
 def main():
@@ -300,7 +300,7 @@ def main():
     print(f'Started {PROG} on {date_now()} {time_now()}.')
     print(f'    Min Chrom Size (bp): {args.min_length:,}')
     print(f'    Window Size (bp): {args.window_size:,}')
-    print(f'    Window Step (bp): {args.window_step:,}')
+    print(f'    Window Step (bp): {args.window_step:,}', flush=True)
     # Get windows from the fai
     genome_window_intervals = set_windows_from_fai(args.fai, args.window_size, args.window_step, args.min_length)
     # Parse the variant sites file and print output
@@ -314,7 +314,7 @@ def main():
         print_average_coverage_file(populated_depth_windows, args.window_size, args.outdir)
         del populated_depth_windows
 
-    print(f'\nFinished {PROG} on {date_now()} {time_now()}.')
+    print(f'\nFinished {PROG} on {date_now()} {time_now()}.', flush=True)
 
 # Run Code
 if __name__ == '__main__':
