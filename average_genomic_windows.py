@@ -237,9 +237,14 @@ def print_average_coverage_file(populated_depth_windows, window_size=250_000, ou
     for chr in populated_depth_windows:
         chr_windows = populated_depth_windows[chr]
         for pos in sorted(chr_windows):
-            depth_list = chr_windows[pos]
-            mean_cov = statistics.mean(depth_list)
-            non_zero_n = len([ cov for cov in depth_list if cov > 0 ])
+            # Only positions with non-zero depth are stored
+            non_zero_depths = chr_windows[pos]
+            non_zero_n = len(non_zero_depths)
+            # Determine a mean coverage
+            mean_cov = 0
+            if non_zero_n > 0:
+                # You always see window_size sites (N), but most are zero and don't contribute to the sum
+                mean_cov = sum(non_zero_depths)/window_size
             row = f'{chr}\t{pos}\t{non_zero_n}\t{mean_cov:.08g}\n'
             outfh.write(row)
     outfh.close()
@@ -273,12 +278,14 @@ def parse_depth_file(depth_f, genome_window_intervals):
         # Tally the current chromosome
         chr_depth_tally.setdefault(chr_id, [0, 0])
         chr_depth_tally[chr_id][0] += 1
+        # Initialize the window (if needed)
+        populated_depth_windows.setdefault(chr_id, dict())
+        chr_window_boundaries = genome_window_intervals.get(chr_id, None)
+        # For efficiency, skip sites with no coverage (and tally)
         if depth > 0:
             chr_depth_tally[chr_id][1] += 1
-        # Populate the windows
-        chr_window_boundaries = genome_window_intervals.get(chr_id, None)
-        populated_depth_windows.setdefault(chr_id, dict())
-        populated_depth_windows = populate_depth_windows(chr_id, position, depth, chr_window_boundaries, populated_depth_windows)
+            # Populate the windows with > 0 values only
+            populated_depth_windows = populate_depth_windows(chr_id, position, depth, chr_window_boundaries, populated_depth_windows)
     genome_total = 0
     genome_non_zero = 0
     for chrom in chr_depth_tally:
