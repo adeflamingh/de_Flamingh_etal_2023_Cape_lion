@@ -67,7 +67,7 @@ def time_now():
 #
 # Calculate the window intervals for a given Chromosome length
 #
-def calculate_chr_window_intervals(chr_len, window_size=250_000, window_step=50_000):
+def calculate_chr_window_intervals(chr_len, window_size=250_000, window_step=100_000):
     assert window_size >= window_step
     assert window_size > 0
     windows = list()
@@ -138,11 +138,27 @@ def set_windows_from_fai(fai, window_size=250_000, window_step=100_000, min_chr_
     return genome_window_intervals
 
 #
+# Initialize dictionary of windows
+#
+def init_windows_dictionary(genome_window_intervals):
+    windows_dict = dict()
+    for chrom in genome_window_intervals:
+        chr_windows = genome_window_intervals[chrom]
+        windows_dict.setdefault(chrom, dict())
+        for window in chr_windows:
+            assert len(window) == 2
+            window_sta = window[0]
+            window_end = window[1]
+            window_mid = int(window_sta + ((window_end - window_sta)/2))
+            windows_dict[chrom].setdefault(window_mid, 0)
+    return windows_dict
+
+#
 # Parse the variant sites file and populate windows
 #
 def read_variant_sites(variant_sites_f, genome_window_intervals):
     print('\nTallying variant sites per chromosome...', flush=True)
-    populated_window_intervals = dict()
+    populated_window_intervals = init_windows_dictionary(genome_window_intervals)
     chr_position_tally = dict()
     fh = None
     if variant_sites_f.endswith('gz'):
@@ -170,7 +186,6 @@ def read_variant_sites(variant_sites_f, genome_window_intervals):
         chr_position_tally[chr_id] += 1
         # Populate the windows
         chr_window_boundaries = genome_window_intervals.get(chr_id, None)
-        populated_window_intervals.setdefault(chr_id, dict())
         populated_window_intervals = populate_variant_site_windows(position, chr_id, chr_window_boundaries, populated_window_intervals)
     genome_total = 0
     for chrom in chr_position_tally:
