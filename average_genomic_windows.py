@@ -82,17 +82,24 @@ def calculate_chr_window_intervals(chr_len, window_size=250_000, window_step=100
 #
 # Add a given variant site to the windows
 #
-def populate_variant_site_windows(variant_site, chrom_id, chr_window_boundaries, populated_window_intervals):
+def populate_variant_site_windows(variant_site, chrom_id, chr_window_boundaries, populated_window_intervals, start=0):
     assert len(chr_window_boundaries) > 0
+    assert 0 <= start < len(chr_window_boundaries)
     assert type(populated_window_intervals[chrom_id]) is dict
+    # Index to determine the starting index in the list of chromosome
+    # window boundaries. The index increases across sequential iterations
+    # to prevent looping the windows from the beginning each time.
+    idx = start
     # Loop over the windows and check the sites
-    for window in chr_window_boundaries:
+    for window in chr_window_boundaries[start:]:
         assert len(window) == 2
         window_sta = window[0]
         window_end = window[1]
         # Check the site:
         # Skip windows that lie before the site
         if window_end < variant_site:
+            # Increase the index
+            idx += 1
             continue
         # Site lands in the window
         elif window_sta <= variant_site < window_end:
@@ -105,7 +112,9 @@ def populate_variant_site_windows(variant_site, chrom_id, chr_window_boundaries,
         # Break the loop when moving past the site
         elif window_sta > variant_site:
             break
-    return populated_window_intervals
+    # Return the window with the current variant added as well as the
+    # starting index for the next iteration.
+    return populated_window_intervals, idx
 
 #
 # Determine the windows from the genome FAI
@@ -140,7 +149,8 @@ def set_windows_from_fai(fai, window_size=250_000, window_step=100_000, min_chr_
 #
 # Initialize dictionary of windows
 #
-def init_windows_dictionary(genome_window_intervals):
+def init_windows_dictionary(genome_window_intervals, win_type='variant'):
+    assert win_type in {'variant', 'depth'}
     windows_dict = dict()
     for chrom in genome_window_intervals:
         chr_windows = genome_window_intervals[chrom]
@@ -150,7 +160,12 @@ def init_windows_dictionary(genome_window_intervals):
             window_sta = window[0]
             window_end = window[1]
             window_mid = int(window_sta + ((window_end - window_sta)/2))
-            windows_dict[chrom].setdefault(window_mid, 0)
+            deflt = None
+            if win_type == 'variant':
+                deflt = 0
+            else:
+                deflt = [0, 0]
+            windows_dict[chrom].setdefault(window_mid, deflt)
     return windows_dict
 
 #
@@ -158,13 +173,17 @@ def init_windows_dictionary(genome_window_intervals):
 #
 def read_variant_sites(variant_sites_f, genome_window_intervals):
     print('\nTallying variant sites per chromosome...', flush=True)
-    populated_window_intervals = init_windows_dictionary(genome_window_intervals)
+    populated_window_intervals = init_windows_dictionary(genome_window_intervals, win_type='variant')
     chr_position_tally = dict()
     fh = None
     if variant_sites_f.endswith('gz'):
         fh = gzip.open(variant_sites_f, 'rt')
     else:
         fh = open(variant_sites_f, 'r')
+    prev_chr = None
+    prev_pos = None
+    start = None
+    genome_total = 0
     for line in fh:
         if line.startswith('#'):
             continue
@@ -174,24 +193,52 @@ def read_variant_sites(variant_sites_f, genome_window_intervals):
         fields = line.split('\t')
         if not len(fields) >= 2:
             sys.exit('Error: variant sites file must have >2 columns, scaffold_id<tab>position_bp<tab>major<tab>...')
+
+        #
+        # Process the chromosome information
+        #
         chr_id = fields[0]
-        if not fields[1].isnumeric():
-            sys.exit('Error: column two of the variant sites file must be an integer position.')
-        position = int(fields[1])
         # Skip positions from unwanted chromosomes
         if chr_id not in genome_window_intervals:
             continue
+        # Check for next chromosome and clear variables
+        if chr_id != prev_chr:
+            if prev_chr is None:
+                prev_chr = chr_id
+                prev_pos = 0
+                start = 0
+            else:
+                # Print the previous chromosome to log
+                n_sites = chr_position_tally[prev_chr]
+                genome_total += n_sites
+                print(f'    {prev_chr} : {n_sites:,} variant sites found.', flush=True)
+                # Reset to the next
+                start = 0
+                prev_pos = 0
+                prev_chr = chr_id
         # Tally the position from the current chromosome
         chr_position_tally.setdefault(chr_id, 0)
         chr_position_tally[chr_id] += 1
+
+        #
+        # Check the BP position
+        # 
+        if not fields[1].isnumeric():
+            sys.exit('Error: column two of the variant sites file must be an integer position.')
+        position = int(fields[1])
+        # Check for sorted sequence
+        if not prev_pos < position:
+            sys.exit('Error: depth file must be sorted by Chr position.')
+
+        #
         # Populate the windows
+        #
         chr_window_boundaries = genome_window_intervals.get(chr_id, None)
-        populated_window_intervals = populate_variant_site_windows(position, chr_id, chr_window_boundaries, populated_window_intervals)
-    genome_total = 0
-    for chrom in chr_position_tally:
-        n_sites = chr_position_tally[chrom]
-        genome_total += n_sites
-        print(f'    {chrom} : {n_sites:,} variant sites found.', flush=True)
+        populated_window_intervals, start = populate_variant_site_windows(position, chr_id, chr_window_boundaries, populated_window_intervals, start)
+    # Report final chromosome and total
+    n_sites = chr_position_tally[prev_chr]
+    genome_total += n_sites
+    print(f'    {prev_chr} : {n_sites:,} variant sites found.', flush=True)
     print(f'\n    Genome-wide : {genome_total:,} total variant sites found.', flush=True)
     return populated_window_intervals
 
@@ -216,17 +263,24 @@ def print_variant_site_tally(populated_window_intervals, window_size=250_000, ou
 #
 # Add a given coverage to the windows
 #
-def populate_depth_windows(chr_id, position, depth, chr_window_boundaries, populated_depth_windows):
+def populate_depth_windows(chr_id, position, depth, chr_window_boundaries, populated_depth_windows, start=0):
     assert len(chr_window_boundaries) > 0
+    assert 0 <= start < len(chr_window_boundaries)
     assert type(populated_depth_windows[chr_id]) is dict
     assert depth >= 0
+    # Index to determine the starting index in the list of chromosome
+    # window boundaries. The index increases across sequential iterations
+    # to prevent looping the windows from the beginning each time.
+    idx = start
     # Loop over the windows and check the position
-    for window in chr_window_boundaries:
+    for window in chr_window_boundaries[start:]:
         assert len(window) == 2
         start = window[0]
         end = window[1]
         # Skip windows that end before the position of interest
         if end < position:
+            # Increase the index
+            idx += 1
             continue
         # Position is in the window
         elif start <= position < end:
@@ -239,7 +293,9 @@ def populate_depth_windows(chr_id, position, depth, chr_window_boundaries, popul
         # Break when moving past the position
         elif start > position:
             break
-    return populated_depth_windows
+    # Return the window with the current variant added as well as the
+    # starting index for the next iteration.
+    return populated_depth_windows, idx
 
 #
 # Print the per-window average coverage file
@@ -276,6 +332,11 @@ def parse_depth_file(depth_f, genome_window_intervals):
         fh = gzip.open(depth_f, 'rt')
     else:
         fh = open(depth_f, 'r')
+    prev_chr = None
+    prev_pos = None
+    start = 0
+    genome_total = 0
+    genome_non_zero = 0
     for line in fh:
         if line.startswith('#'):
             continue
@@ -287,31 +348,54 @@ def parse_depth_file(depth_f, genome_window_intervals):
         chr_id = fields[0]
         position = int(fields[1])
         depth = int(fields[2])
+
         # Skip positions from unwanted chromosomes
         if chr_id not in genome_window_intervals:
             continue
+
+        # When processing a brand new chromosome
+        if chr_id != prev_chr:
+            if prev_chr is None:
+                # First line in file, prepare for incoming data
+                prev_chr = chr_id
+                prev_pos = 0
+                start = 0
+            else:
+                # Print the tally to the log
+                total_chr_sites = chr_depth_tally[prev_chr][0]
+                nonzero_chr_sites = chr_depth_tally[prev_chr][1]
+                nonzero_chr_freq = nonzero_chr_sites/total_chr_sites
+                print(f'    {prev_chr} :  {total_chr_sites:,} sites seen, {nonzero_chr_sites:,} ({nonzero_chr_freq:.02%}) with non-zero depth.', flush=True)
+                # Reset for the next sequence
+                prev_chr = chr_id
+                prev_pos = 0
+                start = 0
+
+        # Check for sorted sequence
+        if not prev_pos < position:
+            sys.exit('Error: depth file must be sorted by Chr position.')
+
         # Tally the current chromosome
         chr_depth_tally.setdefault(chr_id, [0, 0])
         chr_depth_tally[chr_id][0] += 1
+        genome_total += 1
         # Initialize the window (if needed)
         populated_depth_windows.setdefault(chr_id, dict())
         chr_window_boundaries = genome_window_intervals.get(chr_id, None)
         # For efficiency, skip sites with no coverage (and tally)
-        if depth > 0:
-            chr_depth_tally[chr_id][1] += 1
-            # Populate the windows with > 0 values only
-            populated_depth_windows = populate_depth_windows(chr_id, position, depth, chr_window_boundaries, populated_depth_windows)
-    genome_total = 0
-    genome_non_zero = 0
-    for chrom in chr_depth_tally:
-        # Total sites
-        total_sites = chr_depth_tally[chrom][0]
-        genome_total += total_sites
-        # Non-zero sites
-        non_zero_sites = chr_depth_tally[chrom][1]
-        non_zero_freq = non_zero_sites/total_sites
-        genome_non_zero += non_zero_sites
-        print(f'    {chrom} :  {total_sites:,} sites seen, {non_zero_sites:,} ({non_zero_freq:.02%}) with non-zero depth.', flush=True)
+        if depth < 1:
+            continue
+        chr_depth_tally[chr_id][1] += 1
+        genome_non_zero += 1
+        # Populate the windows with > 0 values only
+        populated_depth_windows, start = populate_depth_windows(chr_id, position, depth, chr_window_boundaries, populated_depth_windows, start)
+
+    # Print the tally of the last chr in file to the log
+    total_chr_sites = chr_depth_tally[prev_chr][0]
+    nonzero_chr_sites = chr_depth_tally[prev_chr][1]
+    nonzero_chr_freq = nonzero_chr_sites/total_chr_sites
+    print(f'    {prev_chr} :  {total_chr_sites:,} sites seen, {nonzero_chr_sites:,} ({nonzero_chr_freq:.02%}) with non-zero depth.', flush=True)
+    # Print tally of the genome-wide stats
     genome_non_zero_f = genome_non_zero/genome_total
     print(f'\n    Genome-wide : {genome_total:,} sites seen, {genome_non_zero:,} ({genome_non_zero_f:.02%}) with non-zero depth.', flush=True)
     return populated_depth_windows
