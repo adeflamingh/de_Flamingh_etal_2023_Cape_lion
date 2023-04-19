@@ -286,10 +286,11 @@ def populate_depth_windows(chr_id, position, depth, chr_window_boundaries, popul
         elif start <= position < end:
             # Window's middle position, serves as reference
             mid = int(start + ((end - start)/2))
-            # Initialize the dictionary if empty
-            populated_depth_windows[chr_id].setdefault(mid, list())
-            # Append the depth to the window list
-            populated_depth_windows[chr_id][mid].append(depth)
+            # Initialize the dictionary if empty (should not happen)
+            populated_depth_windows[chr_id].setdefault(mid, [0,0])
+            # Increase the tally and the sum
+            populated_depth_windows[chr_id][mid][0] += 1     # How many non-zero sites
+            populated_depth_windows[chr_id][mid][1] += depth # The sum of non-zero sites
         # Break when moving past the position
         elif start > position:
             break
@@ -308,14 +309,14 @@ def print_average_coverage_file(populated_depth_windows, window_size=250_000, ou
     for chr in populated_depth_windows:
         chr_windows = populated_depth_windows[chr]
         for pos in sorted(chr_windows):
-            # Only positions with non-zero depth are stored
-            non_zero_depths = chr_windows[pos]
-            non_zero_n = len(non_zero_depths)
+            win_values = chr_windows[pos]
+            assert len(win_values) == 2
+            non_zero_n = win_values[0]
+            non_zero_sum = win_values[1]
             # Determine a mean coverage
             mean_cov = 0
             if non_zero_n > 0:
-                # You always see window_size sites (N), but most are zero and don't contribute to the sum
-                mean_cov = sum(non_zero_depths)/window_size
+                 mean_cov = non_zero_sum/window_size
             row = f'{chr}\t{pos}\t{non_zero_n}\t{mean_cov:.08g}\n'
             outfh.write(row)
     outfh.close()
@@ -325,7 +326,7 @@ def print_average_coverage_file(populated_depth_windows, window_size=250_000, ou
 #
 def parse_depth_file(depth_f, genome_window_intervals):
     print('\nTallying depth per chromosome...', flush=True)
-    populated_depth_windows = dict()
+    populated_depth_windows = init_windows_dictionary(genome_window_intervals, win_type='depth')
     chr_depth_tally = dict()
     fh = None
     if depth_f.endswith('gz'):
